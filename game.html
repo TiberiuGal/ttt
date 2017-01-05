@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+    <script
+            src="https://code.jquery.com/jquery-3.1.1.min.js"
+            integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+            crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+
+</header>
+<div class="main">
+    <canvas id="canvas" width="800" height="800"></canvas>
+</div>
+<footer>
+
+</footer>
+<script>
+
+    var cnf = {
+        w : 20,
+        h : 20,
+        o: 5
+    };
+    var offset = {
+        x : 0,
+        y : 0,
+        w : 0,
+        h : 0
+    };
+    var game = {
+        cp : 1,
+        canvas : null
+    };
+    $(document).ready(
+        function () {
+        game.canvas = document.getElementById('canvas');
+            load();
+
+            $(canvas).click(function (e) {
+                var pos = getMousePos(this, e);
+                $.ajax("//localhost:8021/play", {
+                    "method": "POST",
+                    "dataType": "json",
+                    "contentType": 'application/json',
+                    "data" : JSON.stringify({"player": game.cp, "move": pos}),
+                    "success" : function(data) {
+                        game.cp = game.cp == 1? 2 : 1;
+                        load();
+                    }
+                })
+            });
+
+        });
+
+
+</script>
+
+<script type="text/javascript">
+
+    function load() {
+        $.ajax("//localhost:8021/game", {
+            "dataType": "json", "success": function (data) {
+                if (data.Status == 1 ) {
+                    draw(game.canvas, data.GameMap);
+
+                }else if (data.Status == 2) {
+                    drawVictory(game.canvas, data.Winner);
+                }
+            }
+        });
+    }
+
+    function drawVictory(canvas, data){
+        ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+        ctx.font = "24px Georgia";
+        ctx.fillStyle = "blue";
+        ctx.fillText("You won!!!", 20, 20);
+    }
+
+    function draw(canvas, data) {
+
+        ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight)
+        var mX = 0, MX = 0, mY = 0, MY = 0;
+        for (i in data) {
+            x = data[i].X;
+            y = data[i].Y;
+            if (mX > x) {
+                mX = x
+            }
+            if (MX < x) {
+                MX = x
+            }
+            if (mY > y) {
+                mY = y
+            }
+            if (MY < y) {
+                MY = y
+            }
+        }
+        ctx.strokeStyle = "gray";
+        ctx.lineWidth = "1";
+
+        offset.x = mX - cnf.o;
+        offset.y = mY - cnf.o;
+        offset.w = (Math.abs(mX) + cnf.o) * cnf.w;
+        offset.h = (Math.abs(mY) + cnf.o) * cnf.h;
+        ctx.translate(offset.w, offset.h );
+        for (var j = mY - 3; j <= MY + 3; j++) {
+            for (var i = mX - 3; i <= MX + 3; i++) {
+                ctx.strokeRect(i * cnf.w, j * cnf.h, cnf.w, cnf.h);
+                idx = "" + i + "." + j;
+                if (data[idx] != undefined) {
+                    switch (data[idx].Content) {
+                        case 1:
+                            ctx.fillStyle = "red";
+                            break;
+                        case 2:
+                            ctx.fillStyle = "green";
+                            break;
+                    }
+
+                    ctx.fillRect(i * cnf.w, j * cnf.h, cnf.w, cnf.h);
+                    ctx.fillStyle="blue";
+                    ctx.fillText(i + " " + j, i * cnf.w, (j * cnf.h) + 11);
+
+                }
+            }
+        }
+        ctx.translate(-offset.w, -offset.h );
+
+
+    }
+
+
+    function getMousePos(canvas, evt) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+            x: Math.floor((evt.clientX - rect.left) / cnf.w) + offset.x,
+            y: Math.floor((evt.clientY - rect.top) / cnf.h) + offset.y
+        };
+    }
+
+</script>
+</body>
