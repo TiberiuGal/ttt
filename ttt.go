@@ -30,6 +30,7 @@ type (
 		GameMap
 		Status Status
 		Winner Fill
+		Next Fill
 	}
 )
 
@@ -38,7 +39,6 @@ func NewGame() *Game {
 	m := make(GameMap)
 	m[Point{0, 0}.String()] = NewNode(0, 0, FillX)
 	g.GameMap = m
-	g.Status = Ready
 	return g
 }
 
@@ -48,15 +48,15 @@ func (game *Game) GameLoop(c chan Point, n chan struct{}) {
 	x := Mover(game.GameMap, FillX)
 	o := Mover(game.GameMap, FillO)
 
-	next := FillO
+	game.Next= FillO
 	for p := range c {
 
-		if next == FillO {
+		if game.Next == FillO {
 			o(p.X, p.Y)
-			next = FillX
+			game.Next = FillX
 		} else {
 			x(p.X, p.Y)
-			next = FillO
+			game.Next = FillO
 		}
 
 		if f := game.TestVictory(); f != FillNil {

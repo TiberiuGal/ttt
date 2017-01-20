@@ -1,83 +1,44 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
-
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
-	"tibi/lorem/evdispatch/ttt"
 )
 
-var moveChan chan ttt.Point
-var notify chan struct{}
+var (
+	games  []*WebGame
+	router *mux.Router
+)
 
 
-func Serve(c chan ttt.Point, n chan struct{}) {
-	moveChan = c
-	notify = n
+func Serve(addr string) {
 	r := mux.NewRouter()
-	r.HandleFunc("/", index)
-	r.HandleFunc("/game", getGame).Methods("GET")
-	r.HandleFunc("/play", postPlay).Methods("POST")
+	router = r
+	initNewGame()
+	initAuth(addr)
+	r.Handle("/", MustAuth(&templateHandler{filename:"index.html"}))
+	r.HandleFunc("/auth/{action}", loginHandler)
+
+	r.HandleFunc("/game/{id}", getGame).Methods("GET")
+	//r.HandleFunc("/play", postPlay).Methods("POST")
+	r.HandleFunc("/newGame", newGame).Methods("POST")
+	r.HandleFunc("/listGames", listGames).Methods("GET")
 
 	headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "content-type"})
 	originsOk := handlers.AllowedOrigins([]string{"*"})
 	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"})
-
-	err := http.ListenAndServe("localhost:8021", handlers.CORS(headersOk, originsOk, methodsOk)(r))
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("../static"))))
+	//http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir( path.Join("..","static")))))
+	err := http.ListenAndServe(addr, handlers.CORS(headersOk, originsOk, methodsOk)(r))
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-func index(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFiles("index.html")
-	if err != nil {
-		fmt.Fprint(w, err)
-	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	t.Execute(w, struct{}{})
-}
 
-func game(w http.ResponseWriter, r *http.Request) {
-	t, err := template.ParseFiles("game.html")
-	if err != nil {
-		fmt.Fprint(w, err)
-	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	t.Execute(w, struct{}{})
 
-}
 
-func getGame(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	enc := json.NewEncoder(w)
-	err := enc.Encode(game)
-	if err != nil {
-		fmt.Fprint(w, err)
-	}
 
-}
-
-type PlayMsg struct {
-	Player int
-	Move   Point
-}
-
-func postPlay(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	dec := json.NewDecoder(r.Body)
-	var p PlayMsg
-	dec.Decode(&p)
-	fmt.Println("played", p)
-	moveChan <- p.Move
-	<-notify
-	w.Write([]byte("{\"result\":\"ok\"}"))
-}
